@@ -6,7 +6,9 @@
 
         public string Position { get; set; }
 
-        public DateTime? CreatedDate { get; set; } = default;
+        public string Phone { get; set; } = "";
+
+        public DateTime? CreatedDate { get; set; } = DateTime.Now;
 
     }
 }

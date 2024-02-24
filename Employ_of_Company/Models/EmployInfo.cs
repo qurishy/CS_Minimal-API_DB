@@ -8,11 +8,11 @@
 
         public string Position { get; set; }
 
-        public string Phone { get; set; }
+        public string Phone { get; set; } 
 
-        public DateTime? CreatedDate { get; set; } = default;
+        public DateTime? CreatedDate { get; set; } = DateTime.Now;
 
-        public DateTime? ModifiedDate { get; } = default;
+        public DateTime? ModifiedDate { get; } = DateTime.Now;
 
 
 

@@ -1,8 +1,10 @@
 using AutoMapper;
 using Employ_of_Company;
+using Employ_of_Company.DATA;
 using Employ_of_Company.Models;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualBasic;
 using System.Net;
 
@@ -12,6 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext<DATA_AccessPoint>(option => option.UseSqlServer(
+    builder.Configuration.GetConnectionString("DefualtConnection")));
 
 builder.Services.AddAutoMapper(typeof(Mapping_Config_Employ));
 var app = builder.Build();
@@ -23,19 +28,21 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+
+//The code start form here 
 //----------------------------------------------------------------------------
 
 
 
 
 //This method is going to get all the values from db
-app.MapGet("/api/employs/", ( IMapper _mat ,ILogger<Program> _log) =>
+app.MapGet("/api/employs/", (  DATA_AccessPoint _data,IMapper _mat ,ILogger<Program> _log) =>
 {
     ApiRespon respons = new ApiRespon();
 
     respons.issucces = true;
-    respons.statuscode= HttpStatusCode.OK;    
-    respons.result = EmployCreat.info;
+    respons.statuscode= HttpStatusCode.OK;
+    respons.result = _data.Employs;
 
     _log.Log(LogLevel. Information, "getting all coupon");
     return Results.Ok(respons);
@@ -51,12 +58,13 @@ app.MapGet("/api/employs/", ( IMapper _mat ,ILogger<Program> _log) =>
 //==========================================================================
 //This part takes An id and find the equivalent value and returns;
 
-app.MapGet("/api/employ/{id:int}", (IMapper _map ,int id) =>
+app.MapGet("/api/employ/{id:int}", (DATA_AccessPoint _data ,IMapper _map ,int id) =>
 {
     ApiRespon respon = new ApiRespon();
     respon.issucces = true;
     respon.statuscode= HttpStatusCode.OK;
-    respon.result =  EmployCreat.info.FirstOrDefault(u => u.Id==id);
+    respon.result =   _data.Employs.FirstOrDefault(u => u.Id == id);
+    //EmployCreat.info.FirstOrDefault(u => u.Id==id);
     
     if (id == 0)
 
@@ -76,7 +84,7 @@ app.MapGet("/api/employ/{id:int}", (IMapper _map ,int id) =>
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //This part is for adding employ in db and we are going to get value from body/user
 
-app.MapPost("/api/employ/", ( IMapper _map,[FromBody] EmployDTO human ) =>
+app.MapPost("/api/employ/", (DATA_AccessPoint _data, IMapper _map,[FromBody] EmployDTO human ) =>
 {
     ApiRespon respon = new ApiRespon() { issucces = false, statuscode= HttpStatusCode.BadRequest };
 
@@ -88,18 +96,18 @@ app.MapPost("/api/employ/", ( IMapper _map,[FromBody] EmployDTO human ) =>
         return Results.BadRequest(respon);
     }
 
-    if(EmployCreat.info.FirstOrDefault(u=>u.Name.ToLower()==human.Name.ToLower()) != null)
+    if(_data.Employs.FirstOrDefault(u=>u.Name.ToLower()==human.Name.ToLower()) != null)
     {
         respon.Errormessages.Add("There already employ exist with this name");
         return Results.BadRequest(respon);
     }
    
     var hum = _map.Map<EmployInfo>(human);//we are changing the EmployDTO into EmployInfo
-    hum.Id = EmployCreat.info.OrderByDescending(u => u.Id).FirstOrDefault().Id+1 ;//increasing the id number
+    //hum.Id = EmployCreat.info.OrderByDescending(u => u.Id).FirstOrDefault().Id+1 ;//increasing the id number
 
+    _data.Employs.Add(hum);//Adding the information into the database
 
-
-    EmployCreat.info.Add(hum);
+    _data.SaveChanges();
     
     var har = _map.Map<EmployDTO>(human);
 
@@ -120,21 +128,25 @@ app.MapPost("/api/employ/", ( IMapper _map,[FromBody] EmployDTO human ) =>
 
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-app.MapDelete("/api/employ/{id:int}", (int id) =>
+app.MapDelete("/api/employ/{id:int}", ( DATA_AccessPoint _data, int id) =>
 {
     ApiRespon respons = new ApiRespon { issucces= false , statuscode= HttpStatusCode.BadRequest };
 
-    if (!EmployCreat.info.Any(u => u.Id==id))
+    if (!_data.Employs.Any(u => u.Id==id))
     {
         respons.Errormessages.Add("Id doen't maches or doesn't exist ");
         return Results.BadRequest();
     }
 
     EmployInfo human1 = EmployCreat.info.FirstOrDefault(u=>u.Id==id);
-    EmployCreat.info.Remove(human1);
+
+    _data.Employs.Remove(human1);//Removing the employ form database
+    _data.SaveChanges();//saving changes in DB
+
+    //EmployCreat.info.Remove(human1);
 
     respons.issucces=true;
-    respons.statuscode= HttpStatusCode.NotFound;
+    respons.statuscode= HttpStatusCode.OK;
     respons.result = human1;
 
     return Results.Ok(respons);
@@ -143,33 +155,46 @@ app.MapDelete("/api/employ/{id:int}", (int id) =>
 
 //##############################################################################################
 
-app.MapPut("/api/employ/", (IMapper _map, [FromBody] EmployUpdateDTO newEmploy ) =>
+app.MapPut("/api/employ/", ( DATA_AccessPoint _data,IMapper _map, [FromBody] EmployUpdateDTO newEmploy ) =>
 {
     ApiRespon respons = new ApiRespon { issucces= false, statuscode= HttpStatusCode.BadRequest };
 
-    if (newEmploy.Id == EmployCreat.info.FirstOrDefault(u => u.Id == newEmploy.Id).Id)
+
+
+
+    if (newEmploy.Id !=  _data.Employs.FirstOrDefault(u => u.Id == newEmploy.Id).Id)//Checking the database for if the employ exist 
+
     {
 
-        var employ = _map.Map<EmployInfo>(newEmploy);
-
-
-            EmployCreat.info.Remove(employ);
-    
-    respons.issucces = true;
-    respons.statuscode = HttpStatusCode.UpgradeRequired;
-    respons.result = employ;
-
-    return Results.RedirectToRoute("created new employ", employ);
-
-    }
-    
-
-
         respons.Errormessages.Add("there is no employ by this information");
-        Console.WriteLine("some thing is heree");
+       
         return Results.BadRequest();
 
-}) ;
+    }
+    var employ = _data.Employs.FirstOrDefault(u => u.Id== newEmploy.Id);
+
+        employ.Name= newEmploy.Name;
+        employ.Position= newEmploy.Position;
+        employ.Phone= newEmploy.Phone;
+
+      _data.Update(employ);
+
+    _data.SaveChanges();
+
+
+        respons.issucces = true;
+        respons.statuscode = HttpStatusCode.OK;
+        respons.result = employ;
+
+    return Results.Ok(respons);
+
+
+    
+    
+
+
+
+}).Produces<ApiRespon>(200) ;
 
 
 
